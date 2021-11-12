@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "lib/activerecord/bigquery/adapter/version"
+require_relative "lib/active_record/connection_adapters/bigquery/version"
 
 Gem::Specification.new do |spec|
   spec.name          = "activerecord-bigquery-adapter"
@@ -31,6 +31,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "activerecord", ">= 5.2.0"
+  spec.add_dependency "google-cloud-bigquery"
 
   spec.add_development_dependency "appraisal"
 end
