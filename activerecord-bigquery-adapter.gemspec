@@ -32,6 +32,4 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "activerecord", ">= 5.2.0"
   spec.add_dependency "google-cloud-bigquery"
-
-  spec.add_development_dependency "appraisal"
 end

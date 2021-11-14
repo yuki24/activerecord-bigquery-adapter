@@ -4,9 +4,7 @@ module ActiveRecord
   module ConnectionAdapters
     module Bigquery
       module DatabaseStatements
-        READ_QUERY = ActiveRecord::ConnectionAdapters::AbstractAdapter.build_read_query_regexp(
-          :pragma
-        ) # :nodoc:
+        READ_QUERY = ActiveRecord::ConnectionAdapters::AbstractAdapter.build_read_query_regexp # :nodoc:
         private_constant :READ_QUERY
 
         def write_query?(sql) # :nodoc:
@@ -22,7 +20,7 @@ module ActiveRecord
 
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              @connection.execute(sql)
+              @connection.query(sql, dataset: @config[:dataset]).map(&:stringify_keys)
             end
           end
         end
@@ -39,7 +37,7 @@ module ActiveRecord
           log(sql, name, binds, type_casted_binds) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               stmt = @connection.query(sql, dataset: @config[:dataset])
-              cols = stmt.headers.map(&:to_s)
+              cols = stmt.schema&.fields&.map(&:name)
               records = stmt.map(&:values)
 
               ActiveRecord::Result.new(cols, records)
@@ -47,20 +45,20 @@ module ActiveRecord
           end
         end
 
-        def exec_delete(sql, name = "SQL", binds = [])
-          exec_query(sql, name, binds)
-          @connection.changes
-        end
-        alias :exec_update :exec_delete
-
+        # Transaction control statements are supported only in scripts or sessions and we can not use that in
+        # a way ActiveRecord works.
         def begin_db_transaction #:nodoc:
           # no-op...
         end
 
+        # Transaction control statements are supported only in scripts or sessions and we can not use that in
+        # a way ActiveRecord works.
         def commit_db_transaction #:nodoc:
           # no-op...
         end
 
+        # Transaction control statements are supported only in scripts or sessions and we can not use that in
+        # a way ActiveRecord works.
         def exec_rollback_db_transaction #:nodoc:
           # no-op...
         end
@@ -83,8 +81,9 @@ module ActiveRecord
           end
         end
 
+        # BigQuery does not return any value on INSERT.
         def last_inserted_id(result)
-          @connection.last_insert_row_id
+          nil
         end
 
         def build_fixture_statements(fixture_set)

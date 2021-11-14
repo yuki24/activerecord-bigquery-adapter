@@ -1,4 +1,8 @@
+# frozen_string_literal: true
+
 require "google/cloud/bigquery"
+
+require "active_record/connection_adapters/statement_pool"
 
 require_relative 'bigquery/schema_dumper'
 require_relative 'bigquery/schema_statements'
@@ -8,10 +12,19 @@ module ActiveRecord
   class Base
     def self.bigquery_connection(config) # :nodoc:
       config = config.symbolize_keys
+
+      unless config[:dataset]
+        raise ArgumentError, "No dataset is specified. Missing argument: dataset."
+      end
+
       service_account_credentials, *remainder_config = config.values_at(:service_account_credentials, :debug)
 
       if service_account_credentials.blank?
         raise ArgumentError, "No service account credentials specified. Missing argument: service_account_credentials."
+      end
+
+      if config[:timeout] && !config[:timeout].is_a?(Integer)
+        raise ArgumentError, "Invalid timeout value: #{config[:timeout].inspect}."
       end
 
       ConnectionAdapters::BigQueryAdapter.new(nil, logger, [service_account_credentials, *remainder_config], config)
@@ -23,17 +36,16 @@ module ActiveRecord
       ADAPTER_NAME = 'BigQuery'.freeze
 
       NATIVE_DATABASE_TYPES = {
-        string:   { name: "varchar" },
-        text:     { name: "text" },
-        integer:  { name: "integer" },
-        float:    { name: "float" },
-        decimal:  { name: "decimal" },
-        datetime: { name: "datetime" },
-        time:     { name: "time" },
-        date:     { name: "date" },
-        binary:   { name: "blob" },
-        boolean:  { name: "boolean" },
-        json:     { name: "json" },
+        string:   { name: "STRING" },
+        text:     { name: "STRING" },
+        integer:  { name: "INTEGER" },
+        float:    { name: "FLOAT64" },
+        decimal:  { name: "DECIMAL" },
+        datetime: { name: "DATETIME" },
+        time:     { name: "TIME" },
+        date:     { name: "DATE" },
+        binary:   { name: "BYTES" },
+        boolean:  { name: "BOOL" },
       }
 
       include Bigquery::SchemaStatements
@@ -52,11 +64,12 @@ module ActiveRecord
       end
 
       def self.database_exists?(config)
+        config[:dataset] ||= config.delete(:database)
         ActiveRecord::Base.bigquery_connection(config).database_exists?
       end
 
       def database_exists?
-        !! connection.dataset(config[:dataset])
+        !! connection.dataset(@config[:dataset])
       end
 
       def adapter_name
@@ -150,7 +163,7 @@ module ActiveRecord
 
       # Returns the current database encoding format as a string, e.g. 'UTF-8'
       def encoding
-        @connection.encoding.to_s
+        'UTF-8'
       end
 
       def supports_explain?
@@ -161,114 +174,25 @@ module ActiveRecord
         true
       end
 
-      def execute(sql, name = nil)
-        log(sql, name) do
-          connection.query(sql, dataset: @config[:dataset])
-        end
-      end
-
-      # REFERENTIAL INTEGRITY ====================================
-
-      # SCHEMA STATEMENTS ========================================
-
-      def primary_keys(table_name) # :nodoc:
-        [] # no-op: BigQuery does not support primary keys.
-      end
-
-      def remove_index(table_name, column_name = nil, **options) # :nodoc:
-        # no-op: BigQuery does not support index.
-      end
-
-      # Renames a table.
-      #
-      # Example:
-      #   rename_table('octopuses', 'octopi')
-      def rename_table(table_name, new_name)
-        schema_cache.clear_data_source_cache!(table_name.to_s)
-        schema_cache.clear_data_source_cache!(new_name.to_s)
-        exec_query "ALTER TABLE #{quote_table_name(table_name)} RENAME TO #{quote_table_name(new_name)}"
-        rename_table_indexes(table_name, new_name)
-      end
-
-      def add_column(table_name, column_name, type, **options) # :nodoc:
-        if invalid_alter_table_type?(type, options)
-          alter_table(table_name) do |definition|
-            definition.column(column_name, type, **options)
-          end
-        else
-          super
-        end
-      end
-
-      def remove_column(table_name, column_name, type = nil, **options) # :nodoc:
-        alter_table(table_name) do |definition|
-          definition.remove_column column_name
-          definition.foreign_keys.delete_if { |fk| fk.column == column_name.to_s }
-        end
-      end
-
-      def remove_columns(table_name, *column_names, type: nil, **options) # :nodoc:
-        alter_table(table_name) do |definition|
-          column_names.each do |column_name|
-            definition.remove_column column_name
-          end
-          column_names = column_names.map(&:to_s)
-          definition.foreign_keys.delete_if { |fk| column_names.include?(fk.column) }
-        end
-      end
-
-      def change_column_default(table_name, column_name, default_or_changes) # :nodoc:
-        default = extract_new_default_value(default_or_changes)
-
-        alter_table(table_name) do |definition|
-          definition[column_name].default = default
-        end
-      end
-
-      def change_column_null(table_name, column_name, null, default = nil) # :nodoc:
-        unless null || default.nil?
-          exec_query("UPDATE #{quote_table_name(table_name)} SET #{quote_column_name(column_name)}=#{quote(default)} WHERE #{quote_column_name(column_name)} IS NULL")
-        end
-        alter_table(table_name) do |definition|
-          definition[column_name].null = null
-        end
-      end
-
-      def change_column(table_name, column_name, type, **options) # :nodoc:
-        alter_table(table_name) do |definition|
-          definition[column_name].instance_eval do
-            self.type = aliased_types(type.to_s, type)
-            self.options.merge!(options)
-          end
-        end
-      end
-
-      def rename_column(table_name, column_name, new_column_name) # :nodoc:
-        column = column_for(table_name, column_name)
-        alter_table(table_name, rename: { column.name => new_column_name.to_s })
-        rename_column_indexes(table_name, column.name, new_column_name)
-      end
-
-      def add_reference(table_name, ref_name, **options) # :nodoc:
-        super(table_name, ref_name, type: :integer, **options)
-      end
-      alias :add_belongs_to :add_reference
-
-      def foreign_keys(table_name)
-        []
-      end
-
       def connection
-        @connection ||= Google::Cloud::Bigquery.new(credentials: service_account_credentials)
+        @connection ||= Google::Cloud::Bigquery.new(credentials: service_account_credentials, timeout: @config[:timeout])
       end
       alias connect connection
 
       private
 
+      def translate_exception(exception, message:, sql:, binds:)
+        if exception.message.start_with?('Not found: Dataset')
+          NoDatabaseError.new(message)
+        else
+          super
+        end
+      end
+
       # Returns the list of a table's column names, data types, and default values.
       def column_definitions(table_name)
-        (@column_definitions ||= execute("SELECT * FROM analytics.INFORMATION_SCHEMA.COLUMNS"))
-          .select { _1[:table_name] == table_name }
+        (@column_definitions ||= execute("SELECT * FROM INFORMATION_SCHEMA.COLUMNS"))
+          .select { _1['table_name'] == table_name }
       end
 
       def initialize_type_map(m = type_map)

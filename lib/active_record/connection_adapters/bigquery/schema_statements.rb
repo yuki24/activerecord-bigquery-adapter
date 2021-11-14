@@ -1,52 +1,66 @@
 # frozen_string_literal: true
 
+require_relative 'schema_creation'
+require_relative 'table_definitions'
+
 module ActiveRecord
   module ConnectionAdapters
     module Bigquery
       module SchemaStatements # :nodoc:
-        # Returns an empty array as BigQuery does not support indexes.
-        def indexes(table_name)
+        def primary_keys(*) # :nodoc:
+          [] # no-op: BigQuery does not support primary keys.
+        end
+
+        def indexes(*) # :nodoc:
           []
         end
 
-        def add_foreign_key(from_table, to_table, **options)
-          alter_table(from_table) do |definition|
-            to_table = strip_table_name_prefix_and_suffix(to_table)
-            definition.foreign_key(to_table, **options)
+        def remove_index(*) # :nodoc:
+          # no-op: BigQuery does not support index.
+        end
+
+        def foreign_keys(table_name) # :nodoc:
+          []
+        end
+
+        def remove_foreign_key(*) # :nodoc:
+          # no-op: BigQuery does not support foreign keys.
+        end
+
+        def rename_table(table_name, new_name) # :nodoc:
+          schema_cache.clear_data_source_cache!(table_name.to_s)
+          schema_cache.clear_data_source_cache!(new_name.to_s)
+
+          exec_query "ALTER TABLE #{quote_table_name(table_name)} RENAME TO #{quote_table_name(new_name)}"
+        end
+
+        def change_column_default(*) # :nodoc:
+          raise NotImplementedError, "Default values are not supported in BigQuery."
+        end
+
+        def change_column_null(table_name, column_name, null, default = nil) # :nodoc:
+          if null
+            exec_query "ALTER TABLE #{quote_table_name(table_name)} ALTER COLUMN #{quote_column_name(column_name)} DROP NOT NULL"
+          else
+            raise NotImplementedError, "Adding a non-null constraint is supported in BigQuery."
           end
         end
 
-        def remove_foreign_key(from_table, to_table = nil, **options)
-          return if options[:if_exists] == true && !foreign_key_exists?(from_table, to_table)
-
-          to_table ||= options[:to_table]
-          options = options.except(:name, :to_table, :validate)
-          foreign_keys = foreign_keys(from_table)
-
-          fkey = foreign_keys.detect do |fk|
-            table = to_table || begin
-                                  table = options[:column].to_s.delete_suffix("_id")
-                                  Base.pluralize_table_names ? table.pluralize : table
-                                end
-            table = strip_table_name_prefix_and_suffix(table)
-            fk_to_table = strip_table_name_prefix_and_suffix(fk.to_table)
-            fk_to_table == table && options.all? { |k, v| fk.options[k].to_s == v.to_s }
-          end || raise(ArgumentError, "Table '#{from_table}' has no foreign key for #{to_table || options}")
-
-          foreign_keys.delete(fkey)
-          alter_table(from_table, foreign_keys)
+        def change_column(table_name, column_name, type, **options) # :nodoc:
+          exec_query "ALTER TABLE #{quote_table_name(table_name)} ALTER COLUMN #{quote_column_name(column_name)} SET DATA TYPE #{type_to_sql(type)}"
         end
 
-        def check_constraints(table_name)
-          raise NotImplementedError
+        def rename_column(*) # :nodoc:
+          raise NotImplementedError, "Adding a non-null constraint is supported in BigQuery."
         end
 
-        def add_check_constraint(table_name, expression, **options)
-          raise NotImplementedError
+        def check_constraints(*) # :nodoc:
+          # BigQuery does not support check constraints.
+          []
         end
 
-        def remove_check_constraint(table_name, expression = nil, **options)
-          raise NotImplementedError
+        def remove_check_constraint(*) # :nodoc:
+          # no-op: BigQuery does not support check constraints.
         end
 
         def create_schema_dumper(options)
@@ -63,23 +77,23 @@ module ActiveRecord
           Bigquery::TableDefinition.new(self, name, **options)
         end
 
-        def validate_index_length!(table_name, new_name, internal = false)
-          raise NotImplementedError
+        def validate_index_length!(*)
+          # no-op: BigQuery does not support check constraints.
         end
 
-        def new_column_from_field(table_name, field)
-          sql_type_metadata = fetch_type_metadata(field[:column_name], field[:data_type])
-          Column.new(field[:column_name], nil, sql_type_metadata, field[:is_nullable] == 'YES')
+        def new_column_from_field(_table_name, field)
+          sql_type_metadata = fetch_type_metadata(field['column_name'], field['data_type'])
+          Column.new(field['column_name'], nil, sql_type_metadata, field['is_nullable'] == 'YES')
         end
 
-        def fetch_type_metadata(column_name, sql_type)
+        def fetch_type_metadata(_column_name, sql_type)
           cast_type = type_map.lookup(sql_type)
           SqlTypeMetadata.new(sql_type: sql_type, type: cast_type.type, limit: cast_type.limit, precision: cast_type.precision, scale: cast_type.scale)
         end
 
         def data_source_sql(name = nil, type: nil)
           scope = quoted_scope(name, type: type)
-          select_from = +"SELECT table_name FROM #{@config[:dataset]}.INFORMATION_SCHEMA.TABLES"
+          select_from = +"SELECT table_name FROM INFORMATION_SCHEMA.TABLES"
 
           if scope.present?
             wheres = { table_name: scope[:name], table_type: scope[:type] }
