@@ -84,8 +84,14 @@ class SchemaStatementsTest < BigqueryTestCase
 
   test "#remove_columns removes multiple columns" do
     with_example_table "id integer, number integer, name string" do
-      assert_logged [["ALTER TABLE #{default_table_name} DROP COLUMN number", nil, []], ["ALTER TABLE #{default_table_name} DROP COLUMN name", nil, []]] do
-        @conn.remove_columns default_table_name, :number, :name
+      if ActiveRecord::VERSION::STRING >= '7.0'
+        assert_logged [["ALTER TABLE #{default_table_name} DROP COLUMN number, DROP COLUMN name", nil, []]] do
+          @conn.remove_columns default_table_name, :number, :name
+        end
+      else
+        assert_logged [["ALTER TABLE #{default_table_name} DROP COLUMN number", nil, []], ["ALTER TABLE #{default_table_name} DROP COLUMN name", nil, []]] do
+          @conn.remove_columns default_table_name, :number, :name
+        end
       end
 
       # BigQuery has a few min of delay to update its own table info, so skipping this assertion:
