@@ -254,29 +254,17 @@ class BigqueryAdapterTest < BigqueryTestCase
   end
 
   test "db is not readonly when readonly option is false" do
-    skip
     conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, readonly: false)
-    assert_not_predicate conn.raw_connection, :readonly?
+    assert_not_predicate conn, :preventing_writes?
   end
 
   test "db is not readonly when readonly option is unspecified" do
-    skip
     conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG)
-    assert_not_predicate conn.raw_connection, :readonly?
+    assert_not_predicate conn, :preventing_writes?
   end
 
   test "db is readonly when readonly option is true" do
-    skip
     conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, readonly: true)
-    assert_not_predicate conn.raw_connection, :readonly?
-  end
-
-  test "writes are not permitted to readonly databases" do
-    skip
-    conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, readonly: true)
-
-    assert_raises(ActiveRecord::StatementInvalid, /SQLite3::ReadOnlyException/) do
-      conn.execute("CREATE TABLE test(id integer)")
-    end
+    assert_predicate conn, :preventing_writes?
   end
 end

@@ -12,6 +12,7 @@ module ActiveRecord
   class Base
     def self.bigquery_connection(config) # :nodoc:
       config = config.symbolize_keys
+      config[:replica] = config[:readonly]
 
       unless config[:dataset]
         raise ArgumentError, "No dataset is specified. Missing argument: dataset."
