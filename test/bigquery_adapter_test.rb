@@ -8,7 +8,7 @@ class BigqueryAdapterTest < BigqueryTestCase
 
   test "raises an error on incompatible timeout" do
     error = assert_raises ArgumentError do
-      ActiveRecord::Base.bigquery_connection **DEFAULT_CONFIG, timeout: "usa"
+      ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, timeout: "usa")
     end
 
     assert_equal 'Invalid timeout value: "usa".', error.message
@@ -255,25 +255,25 @@ class BigqueryAdapterTest < BigqueryTestCase
 
   test "db is not readonly when readonly option is false" do
     skip
-    conn = ActiveRecord::Base.bigquery_connection **DEFAULT_CONFIG, readonly: false
+    conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, readonly: false)
     assert_not_predicate conn.raw_connection, :readonly?
   end
 
   test "db is not readonly when readonly option is unspecified" do
     skip
-    conn = ActiveRecord::Base.bigquery_connection **DEFAULT_CONFIG
+    conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG)
     assert_not_predicate conn.raw_connection, :readonly?
   end
 
   test "db is readonly when readonly option is true" do
     skip
-    conn = ActiveRecord::Base.bigquery_connection **DEFAULT_CONFIG, readonly: true
+    conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, readonly: true)
     assert_not_predicate conn.raw_connection, :readonly?
   end
 
   test "writes are not permitted to readonly databases" do
     skip
-    conn = ActiveRecord::Base.bigquery_connection **DEFAULT_CONFIG, readonly: true
+    conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, readonly: true)
 
     assert_raises(ActiveRecord::StatementInvalid, /SQLite3::ReadOnlyException/) do
       conn.execute("CREATE TABLE test(id integer)")
