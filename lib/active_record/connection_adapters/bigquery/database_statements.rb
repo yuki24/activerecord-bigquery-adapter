@@ -16,8 +16,6 @@ module ActiveRecord
             raise ActiveRecord::ReadOnlyError, "Write query attempted while in readonly mode: #{sql}"
           end
 
-          materialize_transactions
-
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               @connection.query(sql, dataset: @config[:dataset]).map(&:stringify_keys)
@@ -29,8 +27,6 @@ module ActiveRecord
           if preventing_writes? && write_query?(sql)
             raise ActiveRecord::ReadOnlyError, "Write query attempted while in readonly mode: #{sql}"
           end
-
-          materialize_transactions
 
           type_casted_binds = type_casted_binds(binds)
 
@@ -63,38 +59,15 @@ module ActiveRecord
           # no-op...
         end
 
-        private
-
-        def execute_batch(statements, name = nil)
-          sql = combine_multi_statements(statements)
-
-          if preventing_writes? && write_query?(sql)
-            raise ActiveRecord::ReadOnlyError, "Write query attempted while in readonly mode: #{sql}"
-          end
-
-          materialize_transactions
-
-          log(sql, name) do
-            ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              @connection.execute_batch2(sql)
-            end
-          end
-        end
-
         # BigQuery does not return any value on INSERT.
-        def last_inserted_id(result)
+        def last_inserted_id(*)
           nil
         end
 
-        def build_fixture_statements(fixture_set)
-          fixture_set.flat_map do |table_name, fixtures|
-            next if fixtures.empty?
-            fixtures.map { |fixture| build_fixture_sql([fixture], table_name) }
-          end.compact
-        end
+        private
 
         def build_truncate_statement(table_name)
-          "DELETE FROM #{quote_table_name(table_name)}"
+          "DROP TABLE #{quote_table_name(table_name)}"
         end
       end
     end
