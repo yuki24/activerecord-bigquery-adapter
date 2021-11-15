@@ -18,7 +18,7 @@ module ActiveRecord
 
           log(sql, name) do
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
-              @connection.query(sql, dataset: @config[:dataset]).map(&:stringify_keys)
+              @connection.query(sql, dataset: @config[:dataset]).map!(&:stringify_keys!)
             end
           end
         end
@@ -34,7 +34,7 @@ module ActiveRecord
             ActiveSupport::Dependencies.interlock.permit_concurrent_loads do
               stmt = @connection.query(sql, dataset: @config[:dataset])
               cols = stmt.schema&.fields&.map(&:name)
-              records = stmt.map(&:values)
+              records = stmt.map!(&:values)
 
               ActiveRecord::Result.new(cols, records)
             end
