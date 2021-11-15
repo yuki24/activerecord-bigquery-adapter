@@ -51,7 +51,8 @@ module ActiveRecord
         end
 
         def rename_column(*) # :nodoc:
-          raise NotImplementedError, "Adding a non-null constraint is supported in BigQuery."
+          raise NotImplementedError, "Renaming a table with a single SQL is not supported in BigQuery. You " \
+                                     "will have to create a new table with a different name and drop the old one."
         end
 
         def check_constraints(*) # :nodoc:
