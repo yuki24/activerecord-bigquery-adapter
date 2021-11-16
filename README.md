@@ -1,8 +1,6 @@
 # Activerecord::Bigquery::Adapter
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/activerecord/bigquery/adapter`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+The `activerecord-bigquery-adapter` offers a way to use ActiveRecord with BigQuery.
 
 ## Installation
 
@@ -20,9 +18,25 @@ Or install it yourself as:
 
     $ gem install activerecord-bigquery-adapter
 
-## Usage
+## Set up the adapter
 
-TODO: Write usage instructions here
+Once you install the gem, the `bigquery` adapter will be available in the `config/database.yml`:
+
+```yaml
+development:
+  adapter: bigquery
+  service_account_credentials: '<%= ENV["GOOGLE_CREDENTIALS"] %>'
+  dataset: name_of_your_dataset
+```
+
+## Configuration options
+
+| Name                          | Default  | Description |
+|-------------------------------|----------|-------------|
+| `service_account_credentials` | Required | Your service account credentials for Google Cloud. See [Creating a service account](https://cloud.google.com/docs/authentication/getting-started#creating_a_service_account) for how to create one. |
+| `dataset`                     | Required | The [dataset](https://cloud.google.com/bigquery/docs/datasets-intro) you would like to retrieve data from. |
+| `timeout`                     | `nil`    | timeout to use in requests in seconds. |
+| `readonly`                    | `false`  | Prevents any write queries from being run. Raises an `ActiveRecord::ReadOnlyRecord` error in such a case. |
 
 ## Development
 
@@ -32,7 +46,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/activerecord-bigquery-adapter. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/[USERNAME]/activerecord-bigquery-adapter/blob/master/CODE_OF_CONDUCT.md).
+Bug reports and pull requests are welcome on GitHub at https://github.com/retailzipline/activerecord-bigquery-adapter. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/retailzipline/activerecord-bigquery-adapter/blob/master/CODE_OF_CONDUCT.md).
 
 ## License
 
