@@ -24,7 +24,7 @@ module ActiveRecord
         raise ArgumentError, "No service account credentials specified. Missing argument: service_account_credentials."
       end
 
-      if config[:timeout] && !config[:timeout].is_a?(Integer)
+      if config[:timeout] && !config[:timeout].is_a?(Numeric)
         raise ArgumentError, "Invalid timeout value: #{config[:timeout].inspect}."
       end
 

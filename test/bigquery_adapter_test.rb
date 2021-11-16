@@ -71,6 +71,16 @@ class BigqueryAdapterTest < BigqueryTestCase
     end
   end
 
+  test "#execute with timeout" do
+    conn = ActiveRecord::Base.bigquery_connection(**DEFAULT_CONFIG, timeout: 0.001)
+
+    error = assert_raises ActiveRecord::StatementInvalid do
+      conn.tables
+    end
+
+    assert_equal "Google::Cloud::Error: execution expired", error.message
+  end
+
   test "#exec without binds" do
     with_example_table "id integer, data string" do
       result = @conn.exec_query("SELECT id, data FROM #{default_table_name}")
